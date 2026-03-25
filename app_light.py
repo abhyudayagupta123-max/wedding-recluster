@@ -77,12 +77,12 @@ SCOPES = ["https://www.googleapis.com/auth/drive.readonly"]
 
 @lru_cache(maxsize=1)
 def get_drive_service():
-    service_account_path = os.path.join(BASE_DIR, "service-account.json")
-    if not os.path.exists(service_account_path):
-        raise FileNotFoundError("service-account.json not found in project root")
+    raw_json = os.environ.get("GOOGLE_SERVICE_ACCOUNT_JSON")
+    if not raw_json:
+        raise RuntimeError("GOOGLE_SERVICE_ACCOUNT_JSON is not set")
 
-    creds = service_account.Credentials.from_service_account_file(
-        service_account_path,
+    creds = service_account.Credentials.from_service_account_info(
+        json.loads(raw_json),
         scopes=SCOPES,
     )
     return build("drive", "v3", credentials=creds)

@@ -11,3 +11,5 @@ encodings.npy
 encoding_meta.pkl
 identified_faces/
 images/
+
+service-account.json
