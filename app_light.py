@@ -1,15 +1,20 @@
 import io
-from fastapi import FastAPI, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import RedirectResponse, StreamingResponse
-from search_backend_light import (
-    get_photos_for_people,
-    list_people,
-    get_drive_file_id,
-    get_drive_service,
-)
+import json
+import mimetypes
+import os
+from functools import lru_cache
+from urllib.parse import quote
 
-app = FastAPI()
+from fastapi import FastAPI, HTTPException, Query
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse, JSONResponse
+from google.oauth2 import service_account
+from googleapiclient.discovery import build
+from googleapiclient.http import MediaIoBaseDownload
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+app = FastAPI(title="Wedding Gallery Light API")
 
 app.add_middleware(
     CORSMiddleware,
@@ -19,32 +24,106 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+def load_json(filename: str):
+    path = os.path.join(BASE_DIR, filename)
+    if not os.path.exists(path):
+        raise FileNotFoundError(f"Missing required file: {filename}")
+    with open(path, "r") as f:
+        return json.load(f)
+
+cluster_to_photos = load_json("cluster_to_photos.json")
+cluster_to_label = load_json("cluster_to_label.json")
+photo_to_drive_id = load_json("photo_to_drive_id.json")
+
+person_to_clusters = {}
+for cluster_id, person_name in cluster_to_label.items():
+    if not person_name:
+        continue
+    person_name = str(person_name).strip()
+    if not person_name or person_name.lower() == "unknown":
+        continue
+    person_to_clusters.setdefault(person_name, []).append(str(cluster_id))
+
+def list_people():
+    return sorted(person_to_clusters.keys(), key=lambda x: x.lower())
+
+def get_photos_for_person(name: str):
+    clusters = person_to_clusters.get(name, [])
+    photos = set()
+    for cluster_id in clusters:
+        for photo in cluster_to_photos.get(str(cluster_id), []):
+            photos.add(photo)
+    return photos
+
+def get_photos_for_people(names, match_mode="all"):
+    clean_names = [n.strip() for n in names if n and n.strip()]
+    if not clean_names:
+        return []
+
+    person_sets = [get_photos_for_person(name) for name in clean_names]
+
+    if match_mode == "any":
+        final = set()
+        for s in person_sets:
+            final |= s
+    else:
+        final = person_sets[0].copy()
+        for s in person_sets[1:]:
+            final &= s
+
+    return sorted(final)
+
+SCOPES = ["https://www.googleapis.com/auth/drive.readonly"]
+
+@lru_cache(maxsize=1)
+def get_drive_service():
+    service_account_path = os.path.join(BASE_DIR, "service-account.json")
+    if not os.path.exists(service_account_path):
+        raise FileNotFoundError("service-account.json not found in project root")
+
+    creds = service_account.Credentials.from_service_account_file(
+        service_account_path,
+        scopes=SCOPES,
+    )
+    return build("drive", "v3", credentials=creds)
+
+def build_proxy_path(filename: str):
+    return f"/photo?name={quote(filename)}"
+
 @app.get("/")
 def root():
     return {"status": "light API running"}
 
 @app.get("/people")
 def people():
-    return {"people": list_people()}
+    return {"people": list_people(), "count": len(list_people())}
 
 @app.get("/search_by_names")
-def search_by_names(names: str):
-    name_list = [n.strip() for n in names.split(",") if n.strip()]
-    photos = get_photos_for_people(name_list)
-    return {
-        "count": len(photos),
-        "photos": photos[:500]
-    }
+def search_by_names(
+    names: str = Query(..., description="Comma-separated names"),
+    mode: str = Query("all", description="all or any"),
+):
+    selected_names = [n.strip() for n in names.split(",") if n.strip()]
+    if not selected_names:
+        return JSONResponse({"count": 0, "photos": [], "names": [], "mode": mode})
 
+    photos = get_photos_for_people(selected_names, match_mode=mode.lower())
+    proxy_photos = [build_proxy_path(photo) for photo in photos]
+
+    return {
+        "count": len(proxy_photos),
+        "photos": proxy_photos,
+        "names": selected_names,
+        "mode": mode.lower(),
+    }
 
 @app.get("/photo")
 def get_photo(name: str):
-    if name not in photo_to_drive:
+    if name not in photo_to_drive_id:
         raise HTTPException(status_code=404, detail="Photo not found")
 
-    file_id = photo_to_drive[name]
+    file_id = photo_to_drive_id[name]
     service = get_drive_service()
-
     request = service.files().get_media(fileId=file_id)
 
     file_stream = io.BytesIO()
@@ -55,33 +134,30 @@ def get_photo(name: str):
         _, done = downloader.next_chunk()
 
     file_stream.seek(0)
+    media_type = mimetypes.guess_type(name)[0] or "application/octet-stream"
 
-    return StreamingResponse(file_stream, media_type="image/jpeg")
-
-        iter([data]),
-        media_type="image/jpeg",
-        headers={
-            "Cache-Control": "public, max-age=86400",
-            "Content-Disposition": f'inline; filename="{name}"'
-        },
-    )
+    return StreamingResponse(file_stream, media_type=media_type)
 
 @app.get("/download_photo")
 def download_photo(name: str):
-    fid = get_drive_file_id(name)
-    if not fid:
+    if name not in photo_to_drive_id:
         raise HTTPException(status_code=404, detail="Photo not found")
 
+    file_id = photo_to_drive_id[name]
     service = get_drive_service()
+    request = service.files().get_media(fileId=file_id)
 
-    request = service.files().get_media(fileId=fid)
-    data = request.execute()
+    file_stream = io.BytesIO()
+    downloader = MediaIoBaseDownload(file_stream, request)
 
-    return StreamingResponse(
-        iter([data]),
-        media_type="application/octet-stream",
-        headers={
-            "Cache-Control": "public, max-age=86400",
-            "Content-Disposition": f'attachment; filename="{name}"'
-        },
-    )
+    done = False
+    while not done:
+        _, done = downloader.next_chunk()
+
+    file_stream.seek(0)
+    media_type = mimetypes.guess_type(name)[0] or "application/octet-stream"
+
+    headers = {
+        "Content-Disposition": f'attachment; filename="{name}"'
+    }
+    return StreamingResponse(file_stream, media_type=media_type, headers=headers)
