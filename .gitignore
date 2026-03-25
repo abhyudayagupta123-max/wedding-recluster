@@ -1,0 +1,9 @@
+__pycache__/
+*.pyc
+face-env/
+identified_faces/
+top30_face_crops/
+top31_60_face_crops/
+clusters_61_100_face_crops/
+images/
+temp_uploads/

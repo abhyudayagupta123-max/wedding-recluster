@@ -1,0 +1,57 @@
+cluster_id,person_name,confidence,notes
+1,Sam,High
+2,Vinay,High
+3,Unknown,Mixed faces
+5,Ruchi Bhabhi,High
+6,Ajay Bhaiya,High
+7,Jagbir,High
+9,Mohini,High
+32,Sadika,High
+39,Vinays Mom,High
+51,Abhy,High
+53,Neetu Didi,High
+60,Sams Mom,High
+62,Sams Dad,High
+80,Dikshit,High
+90,Neha Maasi,High
+92,Krisha,High
+93,Karan,High
+97,Abhy,High
+98,Dheeraj Mama,High
+99,Vinays Dad,High
+102,Midushi,High
+131,Sams Mom,High
+136,Bhartee Mami,High
+143,Pandit Ji, High
+52,Tanu Didi,High
+68,Anju Tayiji,High
+70,Madhu Dadi,High
+77,Yash,High
+85,Sonali Bhua,High
+86,Chhavi Didi,High
+94,Punit,High
+96,Vinay,High
+109,Manan,High
+135,Sonali Bhua,High
+206,Karan,High
+270,Nannu,High
+11,Manan,High
+55,Anuj Phuphaji,High
+87,Manisha Bhua,High
+101,Anuj Phuphaji,High
+128,Simran,High
+165,Midushi,High
+198,Parth,High
+205,Punit,High
+209,Vrunda,High
+221,Manisha Bhua,High
+230,Manisha Bhua,High
+242,Sanju Mama,High
+243,Sunnu Mama,High
+244,Pawan Mausaji,High
+255,Samita Aunty,High
+266,Ashish Uncle,High
+269,Asha Tayiji,High
+271,Jyoti Maasi,High
+275,Virender Phuphaji,High
+
