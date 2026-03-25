@@ -1,3 +1,4 @@
+import io
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse, StreamingResponse
@@ -35,18 +36,28 @@ def search_by_names(names: str):
         "photos": photos[:500]
     }
 
+
 @app.get("/photo")
-def photo(name: str):
-    fid = get_drive_file_id(name)
-    if not fid:
+def get_photo(name: str):
+    if name not in photo_to_drive:
         raise HTTPException(status_code=404, detail="Photo not found")
 
+    file_id = photo_to_drive[name]
     service = get_drive_service()
 
-    request = service.files().get_media(fileId=fid)
-    data = request.execute()
+    request = service.files().get_media(fileId=file_id)
 
-    return StreamingResponse(
+    file_stream = io.BytesIO()
+    downloader = MediaIoBaseDownload(file_stream, request)
+
+    done = False
+    while not done:
+        _, done = downloader.next_chunk()
+
+    file_stream.seek(0)
+
+    return StreamingResponse(file_stream, media_type="image/jpeg")
+
         iter([data]),
         media_type="image/jpeg",
         headers={
