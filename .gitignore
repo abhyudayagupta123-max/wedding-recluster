@@ -7,3 +7,7 @@ top31_60_face_crops/
 clusters_61_100_face_crops/
 images/
 temp_uploads/
+encodings.npy
+encoding_meta.pkl
+identified_faces/
+images/

@@ -1,7 +1,2 @@
 fastapi
 uvicorn[standard]
-python-multipart
-numpy
-pillow
-torch
-facenet-pytorch
