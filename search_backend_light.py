@@ -2,7 +2,7 @@ import os
 import json
 from collections import defaultdict
 
-BASE_DIR = os.path.expanduser("~/wedding-recluster")
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 PHOTOS_FILE = os.path.join(BASE_DIR, "cluster_to_photos.json")
 LABEL_FILE = os.path.join(BASE_DIR, "cluster_to_label.json")
