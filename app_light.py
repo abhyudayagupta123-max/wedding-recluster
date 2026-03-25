@@ -136,7 +136,10 @@ def get_photo(name: str):
     file_stream.seek(0)
     media_type = mimetypes.guess_type(name)[0] or "application/octet-stream"
 
-    return StreamingResponse(file_stream, media_type=media_type)
+    headers = {
+        "Cache-Control": "public, max-age=31536000, immutable"
+    }
+    return StreamingResponse(file_stream, media_type=media_type, headers=headers)
 
 @app.get("/download_photo")
 def download_photo(name: str):
@@ -158,6 +161,7 @@ def download_photo(name: str):
     media_type = mimetypes.guess_type(name)[0] or "application/octet-stream"
 
     headers = {
-        "Content-Disposition": f'attachment; filename="{name}"'
+        "Content-Disposition": f'attachment; filename="{name}"',
+        "Cache-Control": "public, max-age=31536000, immutable"
     }
     return StreamingResponse(file_stream, media_type=media_type, headers=headers)
