@@ -213,3 +213,50 @@ def photo_thumb(name: str):
     }
 
     return StreamingResponse(thumb_stream, media_type="image/jpeg", headers=headers)
+
+
+
+@app.get("/photo_display")
+def photo_display(name: str, max_dim: int = 1200, quality: int = 65):
+    if name not in photo_to_drive_id:
+        raise HTTPException(status_code=404, detail="Photo not found")
+
+    service = get_drive_service()
+    file_id = photo_to_drive_id[name]
+    request = service.files().get_media(fileId=file_id)
+
+    original_stream = io.BytesIO()
+    downloader = MediaIoBaseDownload(original_stream, request)
+
+    done = False
+    while not done:
+        _, done = downloader.next_chunk()
+
+    original_stream.seek(0)
+
+    try:
+        with Image.open(original_stream) as img:
+            if img.mode not in ("RGB", "L"):
+                img = img.convert("RGB")
+            elif img.mode == "L":
+                img = img.convert("RGB")
+
+            img.thumbnail((max_dim, max_dim))
+
+            out = io.BytesIO()
+            img.save(out, format="JPEG", quality=max(35, min(quality, 85)), progressive=True)
+            out.seek(0)
+
+            headers = {
+                "Cache-Control": "public, max-age=604800"
+            }
+            return StreamingResponse(out, media_type="image/jpeg", headers=headers)
+
+    except Exception:
+        original_stream.seek(0)
+        media_type = mimetypes.guess_type(name)[0] or "application/octet-stream"
+        headers = {
+            "Cache-Control": "public, max-age=604800"
+        }
+        return StreamingResponse(original_stream, media_type=media_type, headers=headers)
+
