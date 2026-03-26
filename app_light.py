@@ -1,3 +1,4 @@
+from PIL import Image
 import io
 import json
 import mimetypes
@@ -180,3 +181,35 @@ def download_photo(name: str):
         "Cache-Control": "public, max-age=31536000, immutable"
     }
     return StreamingResponse(file_stream, media_type=media_type, headers=headers)
+
+@app.get("/photo_thumb")
+def photo_thumb(name: str):
+    if name not in photo_to_drive_id:
+        raise HTTPException(status_code=404, detail="Photo not found")
+
+    file_id = photo_to_drive_id[name]
+    service = get_drive_service()
+    request = service.files().get_media(fileId=file_id)
+
+    file_stream = io.BytesIO()
+    downloader = MediaIoBaseDownload(file_stream, request)
+
+    done = False
+    while not done:
+        _, done = downloader.next_chunk()
+
+    file_stream.seek(0)
+
+    # Create thumbnail
+    img = Image.open(file_stream)
+    img.thumbnail((400, 400))  # 👈 key line
+
+    thumb_stream = io.BytesIO()
+    img.save(thumb_stream, format="JPEG", quality=70)
+    thumb_stream.seek(0)
+
+    headers = {
+        "Cache-Control": "public, max-age=31536000, immutable"
+    }
+
+    return StreamingResponse(thumb_stream, media_type="image/jpeg", headers=headers)
