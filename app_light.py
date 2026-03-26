@@ -73,6 +73,13 @@ def get_photos_for_people(names, match_mode="all"):
 
     return sorted(final)
 
+def get_all_photos():
+    all_photos = set()
+    for photos in cluster_to_photos.values():
+        for photo in photos:
+            all_photos.add(photo)
+    return sorted(all_photos)
+
 SCOPES = ["https://www.googleapis.com/auth/drive.readonly"]
 
 @lru_cache(maxsize=1)
@@ -100,12 +107,20 @@ def people():
 
 @app.get("/search_by_names")
 def search_by_names(
-    names: str = Query(..., description="Comma-separated names"),
+    names: str = Query("", description="Comma-separated names"),
     mode: str = Query("all", description="all or any"),
 ):
     selected_names = [n.strip() for n in names.split(",") if n.strip()]
+
     if not selected_names:
-        return JSONResponse({"count": 0, "photos": [], "names": [], "mode": mode})
+        photos = get_all_photos()
+        proxy_photos = [build_proxy_path(photo) for photo in photos]
+        return {
+            "count": len(proxy_photos),
+            "photos": proxy_photos,
+            "names": [],
+            "mode": "all",
+        }
 
     photos = get_photos_for_people(selected_names, match_mode=mode.lower())
     proxy_photos = [build_proxy_path(photo) for photo in photos]
