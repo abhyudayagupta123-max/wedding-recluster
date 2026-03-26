@@ -216,10 +216,52 @@ def photo_thumb(name: str):
 
 
 
+
 @app.get("/photo_display")
 def photo_display(name: str, max_dim: int = 1200, quality: int = 65):
     if name not in photo_to_drive_id:
         raise HTTPException(status_code=404, detail="Photo not found")
+
+    safe_name = name.replace("/", "_")
+    cache_path = os.path.join(DISPLAY_CACHE_DIR, safe_name)
+
+    # ✅ 1. Serve from cache if exists
+    if os.path.exists(cache_path):
+        return FileResponse(cache_path, media_type="image/jpeg", headers={
+            "Cache-Control": "public, max-age=604800"
+        })
+
+    # ✅ 2. Otherwise fetch + compress + save
+    service = get_drive_service()
+    file_id = photo_to_drive_id[name]
+    request = service.files().get_media(fileId=file_id)
+
+    original_stream = io.BytesIO()
+    downloader = MediaIoBaseDownload(original_stream, request)
+
+    done = False
+    while not done:
+        _, done = downloader.next_chunk()
+
+    original_stream.seek(0)
+
+    try:
+        with Image.open(original_stream) as img:
+            if img.mode != "RGB":
+                img = img.convert("RGB")
+
+            img.thumbnail((max_dim, max_dim))
+
+            img.save(cache_path, format="JPEG", quality=65, optimize=True)
+
+        return FileResponse(cache_path, media_type="image/jpeg", headers={
+            "Cache-Control": "public, max-age=604800"
+        })
+
+    except Exception:
+        original_stream.seek(0)
+        return StreamingResponse(original_stream, media_type="image/jpeg")
+
 
     service = get_drive_service()
     file_id = photo_to_drive_id[name]
